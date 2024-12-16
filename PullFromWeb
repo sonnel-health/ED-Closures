@@ -1,36 +1,41 @@
-import React, { useEffect, useState } from 'react';
+const express = require('express');
+const axios = require('axios');
+const cheerio = require('cheerio');
 
-function App() {
-  const [edStatuses, setEdStatuses] = useState([]);
+const app = express();
+const PORT = 3000;
 
-  useEffect(() => {
-    fetch('/api/ed-status')
-      .then((response) => response.json())
-      .then((data) => setEdStatuses(data))
-      .catch((error) => console.error('Error fetching data:', error));
-  }, []);
+const URL = 'https://prairiemountainhealth.ca/emergency-department-schedules/';
 
-  return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold">Emergency Department Status</h1>
-      <table className="table-auto w-full mt-4">
-        <thead>
-          <tr>
-            <th className="px-4 py-2">Facility</th>
-            <th className="px-4 py-2">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {edStatuses.map((ed, index) => (
-            <tr key={index}>
-              <td className="border px-4 py-2">{ed.facility}</td>
-              <td className="border px-4 py-2">{ed.status}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+// Function to scrape the webpage
+async function scrapeEDStatus() {
+  try {
+    const { data } = await axios.get(URL);
+    const $ = cheerio.load(data);
+    const edStatuses = [];
+
+    $('table tbody tr').each((_, row) => {
+      const cols = $(row).find('td');
+      const facility = $(cols[0]).text().trim();
+      const status = $(cols[1]).text().trim();
+
+      edStatuses.push({ facility, status });
+    });
+
+    return edStatuses;
+  } catch (error) {
+    console.error('Error scraping ED status:', error);
+    return [];
+  }
 }
 
-export default App;
+// API Endpoint
+app.get('/api/ed-status', async (req, res) => {
+  const statuses = await scrapeEDStatus();
+  res.json(statuses);
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
